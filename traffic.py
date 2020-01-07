@@ -17,6 +17,7 @@ elif six.PY3:
     import queue as q
     from urllib.parse import urljoin
 
+# usern+passw filename (saved in dir of traffic script)
 fname = '.passw'
 
 
@@ -186,7 +187,7 @@ def print_data(traffic):
         if len(value) > 0:
             print(constant.BLUE + key + constant.DEFAULT)
 
-            for k, v in value.items():
+            for k, v in sorted(value.items()):
                 date = datetime.strptime(k, "%Y-%m-%dT%H:%M:%SZ")
                 fdate = datetime.strftime(date, "%m-%d")
 
