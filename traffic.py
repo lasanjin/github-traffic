@@ -100,8 +100,9 @@ def get_repos(auth):
 
 def get_traffic(auth, repos):
     traffic = {}
+    # add each repository url in queue
     queue = build_queue(auth, repos)
-    # build thread for each repository
+    # build threads for requests to each repository
     for i in range(queue.qsize()):
         thread = Thread(target=get_clones_thread,
                         args=(traffic, queue))
@@ -120,7 +121,7 @@ def build_queue(auth, repos):
             api.BASE_URL,
             api.CLONES_URL(auth[0], repo))
 
-        queue.put((url, auth, repo))
+        queue.put((url, repo, auth))
 
     return queue
 
@@ -128,35 +129,16 @@ def build_queue(auth, repos):
 def get_clones_thread(traffic, queue):
     # get clones for each repository
     while not queue.empty():
-        q = queue.get()  # (url, auth, repo)
+        q = queue.get()  # (url, repo, auth)
 
-        data = request(q[0], q[1])
-        traffic[q[2]] = {}
+        data = request(url=q[0], auth=q[2])
+        traffic[q[1]] = {}
 
         for clone in data['clones']:
-            traffic[q[2]][clone['timestamp']] = clone['count']
+            # {repo: {timestamp: clones}}
+            traffic[q[1]][clone['timestamp']] = clone['count']
 
         queue.task_done()
-
-
-def print_data(traffic):
-    for key, value in traffic.items():
-
-        if len(value) > 0:
-            print(constant.BLUE + key + constant.DEFAULT)
-
-            for k, v in value.items():
-                date = datetime.strptime(k, "%Y-%m-%dT%H:%M:%SZ")
-                fdate = datetime.strftime(date, "%m-%d")
-
-                if date.date() == datetime.today().date():  # new clone
-                    print(
-                        fdate + ': ',
-                        constant.GREEN + str(v) + constant.DEFAULT)
-                else:
-                    print(fdate + ': ', v)
-
-            print()
 
 
 def request(url, auth):
@@ -196,6 +178,26 @@ class constant:
     BLUE = '\033[94m'
     DEFAULT = '\033[0m'
     GREEN = '\033[92m'
+
+
+def print_data(traffic):
+    for key, value in traffic.items():
+
+        if len(value) > 0:
+            print(constant.BLUE + key + constant.DEFAULT)
+
+            for k, v in value.items():
+                date = datetime.strptime(k, "%Y-%m-%dT%H:%M:%SZ")
+                fdate = datetime.strftime(date, "%m-%d")
+
+                if date.date() == datetime.today().date():  # new clone
+                    print(
+                        fdate + ': ',
+                        constant.GREEN + str(v) + constant.DEFAULT)
+                else:
+                    print(fdate + ': ', v)
+
+            print()
 
 
 if __name__ == '__main__':
