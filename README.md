@@ -3,6 +3,7 @@ Lists number of clones for each source repository. Works with Python2 and Python
 
 ## How to run
 1. Compile & run
+   - Requires `pip install requests`
 ```
 $ chmod +x traffic.py && ./traffic.py
 ```

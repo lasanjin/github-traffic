@@ -3,30 +3,41 @@
 
 from __future__ import print_function  # print() python2
 from datetime import datetime
-import json
-import requests
+from threading import Thread
 from getpass import getpass
+import requests
+import json
 import six
+import os
 
 if six.PY2:
     from urlparse import urljoin
+    import Queue as q
 elif six.PY3:
+    import queue as q
     from urllib.parse import urljoin
+
+fname = '.passw'
 
 
 def main():
-    try:
-        if six.PY2:
-            user = raw_input('username: ')
-        elif six.PY3:
-            user = input('username: ')
+    if not os.path.isfile(fname):  # if not .passw
+        try:
+            if six.PY2:
+                user = raw_input('username: ')
+            elif six.PY3:
+                user = input('username: ')
 
-        passw = getpass('password: ')
+            passw = getpass('password: ')
 
-    except ValueError:
-        print("ValueError")
+        except ValueError:
+            print("ValueError")
 
-    auth = (user, passw)
+        auth = [user, passw]
+        save_passw(auth)  # save in dir of script for next time
+
+    else:
+        auth = read_passw()
 
     print("\nfetching data...\n")
     repos = get_repos(auth)
@@ -35,13 +46,51 @@ def main():
     print_data(traffic)
 
 
+def save_passw(auth):
+    d = os.path.dirname(__file__)  # dir of script
+
+    try:
+        os.path.join(d, fname)
+
+        f = open(fname, "w")
+        for i in auth:
+            f.write(i)
+            f.write('\n')
+
+        f.close()
+
+    except OSError as eos:
+        print('OSError:', eos)
+
+    except IOError as eio:
+        print("IOError:", eio)
+
+
+def read_passw():
+    auth = []
+
+    try:
+        f = open(fname, "r")
+        out = f.readlines()
+        f.close()
+
+        for i in out:
+            auth.append(i.strip())
+
+    except IOError as eio:
+        print("IOError:", eio)
+
+    return auth
+
+
 def get_repos(auth):
     url = urljoin(
         api.BASE_URL,
-        api.REPOS_URL)
-    data = request(url, auth)
+        api.REPOS_URL(auth[0]))
 
+    data = request(url, auth)
     repos = []
+
     for key in data:
         if key['owner']['login'] == auth[0]:  # source repos
             repos.append(key['name'])
@@ -51,17 +100,43 @@ def get_repos(auth):
 
 def get_traffic(auth, repos):
     traffic = {}
+    queue = build_queue(auth, repos)
+    # build thread for each repository
+    for i in range(queue.qsize()):
+        thread = Thread(target=get_clones_thread,
+                        args=(traffic, queue))
+        thread.daemon = True
+        thread.start()
+
+    queue.join()
+
+    return traffic
+
+
+def build_queue(auth, repos):
+    queue = q.Queue()
     for repo in repos:
         url = urljoin(
             api.BASE_URL,
-            api.CLONE_URL(auth[0], repo))
-        data = request(url, auth)
+            api.CLONES_URL(auth[0], repo))
 
-        traffic[repo] = {}
+        queue.put((url, auth, repo))
+
+    return queue
+
+
+def get_clones_thread(traffic, queue):
+    # get clones for each repository
+    while not queue.empty():
+        q = queue.get()  # (url, auth, repo)
+
+        data = request(q[0], q[1])
+        traffic[q[2]] = {}
+
         for clone in data['clones']:
-            traffic[repo][clone['timestamp']] = clone['count']
+            traffic[q[2]][clone['timestamp']] = clone['count']
 
-    return traffic
+        queue.task_done()
 
 
 def print_data(traffic):
@@ -72,18 +147,21 @@ def print_data(traffic):
 
             for k, v in value.items():
                 date = datetime.strptime(k, "%Y-%m-%dT%H:%M:%SZ")
-                formatted = datetime.strftime(date, "%m-%d")
+                fdate = datetime.strftime(date, "%m-%d")
 
-                print(formatted + ': ', v)
+                if date.date() == datetime.today().date():  # new clone
+                    print(
+                        fdate + ': ',
+                        constant.GREEN + str(v) + constant.DEFAULT)
+                else:
+                    print(fdate + ': ', v)
 
             print()
 
 
 def request(url, auth):
     try:
-        res = requests.get(
-            url,
-            auth=auth)
+        res = requests.get(url, auth=(auth[0], auth[1]))
 
         res.raise_for_status()
 
@@ -104,16 +182,20 @@ def request(url, auth):
 
 class api:
     BASE_URL = 'https://api.github.com'
-    REPOS_URL = 'user/repos'
 
     @staticmethod
-    def CLONE_URL(user, repo):
+    def REPOS_URL(user):
+        return 'users/' + user + '/repos'
+
+    @staticmethod
+    def CLONES_URL(user, repo):
         return 'repos/' + user + '/' + repo + '/traffic/clones'
 
 
 class constant:
     BLUE = '\033[94m'
     DEFAULT = '\033[0m'
+    GREEN = '\033[92m'
 
 
 if __name__ == '__main__':
