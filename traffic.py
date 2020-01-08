@@ -10,10 +10,10 @@ import json
 import six
 import os
 
-if six.PY2:
+if six.PY2:  # python2
     from urlparse import urljoin
     import Queue as q
-elif six.PY3:
+elif six.PY3:  # python3
     import queue as q
     from urllib.parse import urljoin
 
@@ -22,29 +22,39 @@ fname = '.passw'
 
 
 def main():
+    auth = get_auth()
+
+    print("\nFetching data...\n")
+
+    repos = get_repos(auth)
+    traffic = get_traffic(auth, repos)
+
+    if not traffic:
+        print("No data...")
+    else:
+        print_data(traffic)
+
+
+def get_auth():
     if not os.path.isfile(fname):  # if not .passw
         try:
             if six.PY2:
-                user = raw_input('username: ')
+                user = raw_input('Username: ')
             elif six.PY3:
-                user = input('username: ')
+                user = input('Username: ')
 
-            passw = getpass('password: ')
+            passw = getpass('Password: ')
 
         except ValueError:
             print("ValueError")
 
         auth = [user, passw]
-        save_passw(auth)  # save in dir of script for next time
+        save_passw(auth)  # save login credentials
 
     else:
         auth = read_passw()
 
-    print("\nfetching data...\n")
-    repos = get_repos(auth)
-    traffic = get_traffic(auth, repos)
-
-    print_data(traffic)
+    return auth
 
 
 def save_passw(auth):
@@ -52,8 +62,8 @@ def save_passw(auth):
 
     try:
         os.path.join(d, fname)
-
         f = open(fname, "w")
+
         for i in auth:
             f.write(i)
             f.write('\n')
@@ -133,11 +143,12 @@ def get_clones_thread(traffic, queue):
         q = queue.get()  # (url, repo, auth)
 
         data = request(url=q[0], auth=q[2])
-        traffic[q[1]] = {}
+        if len(data) > 0:
 
-        for clone in data['clones']:
-            # {repo: {timestamp: clones}}
-            traffic[q[1]][clone['timestamp']] = clone['count']
+            traffic[q[1]] = {}
+            for clone in data['clones']:
+                # {repo: {timestamp: clones}}
+                traffic[q[1]][clone['timestamp']] = clone['count']
 
         queue.task_done()
 
