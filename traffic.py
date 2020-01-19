@@ -17,8 +17,9 @@ elif six.PY3:  # python3
     import queue as q
     from urllib.parse import urljoin
 
-# usern+passw filename (saved in dir of traffic script)
-fname = '.passw'
+
+path = os.path.dirname(__file__)  # abs path of script
+passwf = os.path.join(path, '.passw')
 
 
 def main():
@@ -36,7 +37,7 @@ def main():
 
 
 def get_auth():
-    if not os.path.isfile(fname):  # if not .passw
+    if not os.path.isfile(passwf):  # if no .passw file
         try:
             if six.PY2:
                 user = raw_input('Username: ')
@@ -58,11 +59,8 @@ def get_auth():
 
 
 def save_passw(auth):
-    d = os.path.dirname(__file__)  # dir of script
-
     try:
-        os.path.join(d, fname)
-        f = open(fname, "w")
+        f = open(passwf, "w")
 
         for i in auth:
             f.write(i)
@@ -81,7 +79,7 @@ def read_passw():
     auth = []
 
     try:
-        f = open(fname, "r")
+        f = open(passwf, "r")
         out = f.readlines()
         f.close()
 
