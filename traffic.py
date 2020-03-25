@@ -181,8 +181,8 @@ class api:
 
 class C:
     FILE = '.passw'
-    USER = 'Username: '
-    PASSW = 'Password: '
+    USER = 'USERNAME: '
+    PASSW = 'PASSWORD: '
     FETCHING = "\nFETCHING DATA...\n"
     NO_DATA = "NO DATA"
     BLUE = '\033[94m'
