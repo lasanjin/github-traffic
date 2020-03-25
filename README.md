@@ -1,9 +1,8 @@
 # Github traffic
-Lists number of clones for each source repository. Works with Python2 and Python3.
+Lists number of clones for each source repository. Works with Python 2+, 3+.
 
 ## How to run
 1. Compile & run
-   - Requires `pip install requests`
 ```
 $ chmod +x traffic.py && ./traffic.py
 ```

@@ -18,49 +18,44 @@ elif six.PY3:  # python3
     from urllib.parse import urljoin
 
 
-path = os.path.dirname(__file__)  # abs path of script
-passwf = os.path.join(path, '.passw')
-
-
 def main():
-    auth = get_auth()
+    path = os.path.dirname(__file__)  # abs path of script
+    file = os.path.join(path, C.FILE)
+    auth = get_auth(file)
 
-    print("\nFetching data...\n")
+    print(C.FETCHING)
 
     repos = get_repos(auth)
     traffic = get_traffic(auth, repos)
 
-    if not traffic:
-        print("No data...")
-    else:
-        print_data(traffic)
+    print_data(traffic)
 
 
-def get_auth():
-    if not os.path.isfile(passwf):  # if no .passw file
+def get_auth(file):
+    if not os.path.isfile(file):  # if no .passw file
         try:
             if six.PY2:
-                user = raw_input('Username: ')
+                user = raw_input(C.USER)
             elif six.PY3:
-                user = input('Username: ')
+                user = input(C.USER)
 
-            passw = getpass('Password: ')
+            passw = getpass(C.PASSW)
 
-        except ValueError:
-            print("ValueError")
+        except ValueError as e:
+            print("ValueError", e.reason)
 
         auth = [user, passw]
-        save_passw(auth)  # save login credentials
+        save_passw(auth, file)  # save login credentials
 
     else:
-        auth = read_passw()
+        auth = read_passw(file)
 
     return auth
 
 
-def save_passw(auth):
+def save_passw(auth, file):
     try:
-        f = open(passwf, "w")
+        f = open(file, "w")  # write
 
         for i in auth:
             f.write(i)
@@ -75,11 +70,11 @@ def save_passw(auth):
         print("IOError:", eio)
 
 
-def read_passw():
+def read_passw(file):
     auth = []
 
     try:
-        f = open(passwf, "r")
+        f = open(file, "r")  # read
         out = f.readlines()
         f.close()
 
@@ -184,30 +179,38 @@ class api:
         return 'repos/' + user + '/' + repo + '/traffic/clones'
 
 
-class constant:
+class C:
+    FILE = '.passw'
+    USER = 'Username: '
+    PASSW = 'Password: '
+    FETCHING = "\nFETCHING DATA...\n"
+    NO_DATA = "NO DATA"
     BLUE = '\033[94m'
     DEFAULT = '\033[0m'
     GREEN = '\033[92m'
 
 
 def print_data(traffic):
-    for key, value in traffic.items():
+    if not traffic:
+        print(C.NO_DATA)
+    else:
+        for key, value in traffic.items():
 
-        if len(value) > 0:
-            print(constant.BLUE + key + constant.DEFAULT)
+            if len(value) > 0:
+                print(C.BLUE + key + C.DEFAULT)
 
-            for k, v in sorted(value.items()):
-                date = datetime.strptime(k, "%Y-%m-%dT%H:%M:%SZ")
-                fdate = datetime.strftime(date, "%m-%d")
+                for k, v in sorted(value.items()):
+                    date = datetime.strptime(k, "%Y-%m-%dT%H:%M:%SZ")
+                    fdate = datetime.strftime(date, "%m-%d")
 
-                if date.date() == datetime.today().date():  # new clone
-                    print(
-                        fdate + ': ',
-                        constant.GREEN + str(v) + constant.DEFAULT)
-                else:
-                    print(fdate + ': ', v)
+                    if date.date() == datetime.today().date():  # new clone
+                        print(
+                            fdate + ': ',
+                            C.GREEN + str(v) + C.DEFAULT)
+                    else:
+                        print(fdate + ': ', v)
 
-            print()
+                print()
 
 
 if __name__ == '__main__':
