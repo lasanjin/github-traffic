@@ -42,7 +42,7 @@ def get_auth(file):
             passw = getpass(C.PASSW)
 
         except ValueError as e:
-            print("ValueError", e.reason)
+            print("ValueError:", e.reason)
 
         auth = [user, passw]
         save_passw(auth, file)  # save login credentials
@@ -89,8 +89,8 @@ def read_passw(file):
 
 def get_repos(auth):
     url = urljoin(
-        api.BASE_URL,
-        api.REPOS_URL(auth[0]))
+        api.URL,
+        api.repos(auth[0]))
 
     data = request(url, auth)
     repos = []
@@ -103,7 +103,7 @@ def get_repos(auth):
 
 
 def get_traffic(auth, repos):
-    traffic = {}
+    traffic = dict()
     # add each repository url in queue
     queue = build_queue(auth, repos)
     # build threads for requests to each repository
@@ -122,8 +122,8 @@ def build_queue(auth, repos):
     queue = q.Queue()
     for repo in repos:
         url = urljoin(
-            api.BASE_URL,
-            api.CLONES_URL(auth[0], repo))
+            api.URL,
+            api.clones(auth[0], repo))
 
         queue.put((url, repo, auth))
 
@@ -168,49 +168,67 @@ def request(url, auth):
 
 
 class api:
-    BASE_URL = 'https://api.github.com'
+    URL = 'https://api.github.com'
 
     @staticmethod
-    def REPOS_URL(user):
-        return 'users/' + user + '/repos'
+    def repos(user):
+        return 'users/{}/repos'.format(user)
 
     @staticmethod
-    def CLONES_URL(user, repo):
-        return 'repos/' + user + '/' + repo + '/traffic/clones'
+    def clones(user, repo):
+        return 'repos/{}/{}/traffic/clones'.format(user, repo)
+
+
+def print_data(traffic):
+    if not traffic:
+        print(C.NO_DATA)
+
+    else:
+        today = datetime.today().date()
+        for key, value in traffic.items():
+
+            if len(value) > 0:
+                print(color.blue(key))
+
+                for k, v in sorted(value.items()):
+                    date = datetime.strptime(k, C.format('YmdHMSZ'))
+                    fdate = datetime.strftime(date, C.format('md'))
+
+                    if date.date() == today:  # new clone
+                        print('{}: {}'.format(fdate, color.green(v)))
+                    else:
+                        print('{}: {}'.format(fdate, v))
+
+                print()
 
 
 class C:
     FILE = '.passw'
     USER = 'USERNAME: '
     PASSW = 'PASSWORD: '
-    FETCHING = "\nFETCHING DATA...\n"
+    FETCHING = "FETCHING DATA...\n"
     NO_DATA = "NO DATA"
-    BLUE = '\033[94m'
+
+    @staticmethod
+    def format(arg):
+        return {
+            'YmdHMSZ': '%Y-%m-%dT%H:%M:%SZ',
+            'md': '%m-%d'
+        }[arg]
+
+
+class color:
     DEFAULT = '\033[0m'
     GREEN = '\033[92m'
+    BLUE = '\033[94m'
 
+    @staticmethod
+    def green(output):
+        return color.GREEN + str(output) + color.DEFAULT
 
-def print_data(traffic):
-    if not traffic:
-        print(C.NO_DATA)
-    else:
-        for key, value in traffic.items():
-
-            if len(value) > 0:
-                print(C.BLUE + key + C.DEFAULT)
-
-                for k, v in sorted(value.items()):
-                    date = datetime.strptime(k, "%Y-%m-%dT%H:%M:%SZ")
-                    fdate = datetime.strftime(date, "%m-%d")
-
-                    if date.date() == datetime.today().date():  # new clone
-                        print(
-                            fdate + ': ',
-                            C.GREEN + str(v) + C.DEFAULT)
-                    else:
-                        print(fdate + ': ', v)
-
-                print()
+    @staticmethod
+    def blue(output):
+        return color.BLUE + str(output) + color.DEFAULT
 
 
 if __name__ == '__main__':
