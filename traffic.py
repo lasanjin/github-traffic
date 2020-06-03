@@ -20,10 +20,10 @@ elif six.PY3:  # python3
 
 def main():
     path = os.path.dirname(__file__)  # abs path of script
-    file = os.path.join(path, C.FILE)
+    file = os.path.join(path, '.passw')
     auth = get_auth(file)
 
-    print(C.FETCHING)
+    print(color.info(), 'FETCHING DATA...\n')
 
     repos = get_repos(auth)
     traffic = get_traffic(auth, repos)
@@ -35,11 +35,11 @@ def get_auth(file):
     if not os.path.isfile(file):  # if no .passw file
         try:
             if six.PY2:
-                user = raw_input(C.USER)
+                user = raw_input('USERNAME: ')
             elif six.PY3:
-                user = input(C.USER)
+                user = input('USERNAME: ')
 
-            passw = getpass(C.PASSW)
+            passw = getpass('PASSWORD: ')
 
         except ValueError as e:
             print("ValueError:", e.reason)
@@ -203,12 +203,6 @@ def print_data(traffic):
 
 
 class C:
-    FILE = '.passw'
-    USER = 'USERNAME: '
-    PASSW = 'PASSWORD: '
-    FETCHING = "FETCHING DATA...\n"
-    NO_DATA = "NO DATA"
-
     @staticmethod
     def format(arg):
         return {
@@ -229,6 +223,10 @@ class color:
     @staticmethod
     def blue(output):
         return color.BLUE + str(output) + color.DEFAULT
+
+    @staticmethod
+    def info():
+        return color.green("[INFO]")
 
 
 if __name__ == '__main__':
