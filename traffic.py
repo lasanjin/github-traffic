@@ -2,13 +2,18 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function  # print() python2
+
+import os
+import sys
+ABS_PATH = os.path.dirname(__file__)
+sys.path.append(os.path.join(ABS_PATH, 'modules'))
+
 from datetime import datetime
 from threading import Thread
 from getpass import getpass
-import requests
 import json
 import six
-import os
+import requests
 
 if six.PY2:  # python2
     from urlparse import urljoin
@@ -19,8 +24,7 @@ elif six.PY3:  # python3
 
 
 def main():
-    path = os.path.dirname(__file__)  # abs path of script
-    file = os.path.join(path, '.passw')
+    file = os.path.join(ABS_PATH, '.passw')
     auth = get_auth(file)
 
     print(color.info(), 'FETCHING DATA...\n')
