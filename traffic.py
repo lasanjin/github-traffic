@@ -2,18 +2,18 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function  # print() python2
+import requests
+import six
+import json
+from getpass import getpass
+from threading import Thread
+from datetime import datetime
 
 import os
 import sys
 ABS_PATH = os.path.dirname(__file__)
 sys.path.append(os.path.join(ABS_PATH, 'modules'))
 
-from datetime import datetime
-from threading import Thread
-from getpass import getpass
-import json
-import six
-import requests
 
 if six.PY2:  # python2
     from urlparse import urljoin
@@ -24,92 +24,35 @@ elif six.PY3:  # python3
 
 
 def main():
-    file = os.path.join(ABS_PATH, '.passw')
-    auth = get_auth(file)
+    file = os.path.join(ABS_PATH, '.credentials')
+    credentials = get_auth(file)
 
     print(color.info(), 'FETCHING DATA...\n')
 
-    repos = get_repos(auth)
-    traffic = get_traffic(auth, repos)
-
+    repos = get_repos(credentials)
+    traffic = get_traffic(credentials, repos)
     print_data(traffic)
 
 
-def get_auth(file):
-    if not os.path.isfile(file):  # if no .passw file
-        try:
-            if six.PY2:
-                user = raw_input('USERNAME: ')
-            elif six.PY3:
-                user = input('USERNAME: ')
-
-            passw = getpass('PASSWORD: ')
-
-        except ValueError as e:
-            print("ValueError:", e.reason)
-
-        auth = [user, passw]
-        save_passw(auth, file)  # save login credentials
-
-    else:
-        auth = read_passw(file)
-
-    return auth
-
-
-def save_passw(auth, file):
-    try:
-        f = open(file, "w")  # write
-
-        for i in auth:
-            f.write(i)
-            f.write('\n')
-
-        f.close()
-
-    except OSError as eos:
-        print('OSError:', eos)
-
-    except IOError as eio:
-        print("IOError:", eio)
-
-
-def read_passw(file):
-    auth = []
-
-    try:
-        f = open(file, "r")  # read
-        out = f.readlines()
-        f.close()
-
-        for i in out:
-            auth.append(i.strip())
-
-    except IOError as eio:
-        print("IOError:", eio)
-
-    return auth
-
-
-def get_repos(auth):
+def get_repos(credentials):
     url = urljoin(
-        api.URL,
-        api.repos(auth[0]))
+        api.BASE_URL,
+        api.repos(credentials[0]))
 
-    data = request(url, auth)
+    data = request(url, credentials)
     repos = []
 
     for key in data:
-        if key['owner']['login'] == auth[0]:  # source repos
+        if key['owner']['login'] == credentials[0]:  # source repos
             repos.append(key['name'])
 
     return repos
 
 
-def get_traffic(auth, repos):
+def get_traffic(credentials, repos):
     traffic = dict()
     # add each repository url in queue
-    queue = build_queue(auth, repos)
+    queue = build_queue(credentials, repos)
     # build threads for requests to each repository
     for i in range(queue.qsize()):
         thread = Thread(target=get_clones_thread,
@@ -122,14 +65,14 @@ def get_traffic(auth, repos):
     return traffic
 
 
-def build_queue(auth, repos):
+def build_queue(credentials, repos):
     queue = q.Queue()
     for repo in repos:
         url = urljoin(
-            api.URL,
-            api.clones(auth[0], repo))
+            api.BASE_URL,
+            api.clones(credentials[0], repo))
 
-        queue.put((url, repo, auth))
+        queue.put((url, repo, credentials))
 
     return queue
 
@@ -137,9 +80,9 @@ def build_queue(auth, repos):
 def get_clones_thread(traffic, queue):
     # get clones for each repository
     while not queue.empty():
-        q = queue.get()  # (url, repo, auth)
+        q = queue.get()  # (url, repo, credentials)
 
-        data = request(url=q[0], auth=q[2])
+        data = request(url=q[0], credentials=q[2])
         if len(data) > 0:
 
             traffic[q[1]] = {}
@@ -150,10 +93,9 @@ def get_clones_thread(traffic, queue):
         queue.task_done()
 
 
-def request(url, auth):
+def request(url, credentials):
     try:
-        res = requests.get(url, auth=(auth[0], auth[1]))
-
+        res = requests.get(url, auth=(credentials[0], credentials[1]))
         res.raise_for_status()
 
         return json.loads(res.text)
@@ -172,25 +114,83 @@ def request(url, auth):
 
 
 class api:
-    URL = 'https://api.github.com'
+    BASE_URL = 'https://api.github.com'
 
     @staticmethod
-    def repos(user):
-        return 'users/{}/repos'.format(user)
+    def repos(username):
+        return 'users/{}/repos'.format(username)
 
     @staticmethod
-    def clones(user, repo):
-        return 'repos/{}/{}/traffic/clones'.format(user, repo)
+    def clones(username, repo):
+        return 'repos/{}/{}/traffic/clones'.format(username, repo)
 
 
+##################################################
+# READ/WRITE USERNAME/TOKEN
+##################################################
+def get_auth(file):
+    if not os.path.isfile(file):  # if no .credentials file
+        try:
+            if six.PY2:
+                username = raw_input('USERNAME: ')
+            elif six.PY3:
+                username = input('USERNAME: ')
+
+            token = getpass(
+                'PERSONAL ACCESS TOKEN (https://github.com/settings/tokens): ')
+        except ValueError as e:
+            print("ValueError:", e.reason)
+
+        credentials = [username, token]
+        save_passw(credentials, file)  # save login credentials
+    else:
+        credentials = read_passw(file)
+
+    return credentials
+
+
+def save_passw(credentials, file):
+    try:
+        f = open(file, "w")  # write
+
+        for c in credentials:
+            f.write(c)
+            f.write('\n')
+
+        f.close()
+    except OSError as eos:
+        print('OSError:', eos)
+
+    except IOError as eio:
+        print("IOError:", eio)
+
+
+def read_passw(file):
+    credentials = []
+
+    try:
+        f = open(file, "r")  # read
+        lines = f.readlines()
+        f.close()
+
+        for line in lines:
+            credentials.append(line.strip())
+    except IOError as eio:
+        print("IOError:", eio)
+
+    return credentials
+
+
+##################################################
+# PRINT
+##################################################
 def print_data(traffic):
     if not traffic:
         print(C.NO_DATA)
-
     else:
         today = datetime.today().date()
-        for key, value in traffic.items():
 
+        for key, value in traffic.items():
             if len(value) > 0:
                 print(color.blue(key))
 
