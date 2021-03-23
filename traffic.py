@@ -10,7 +10,6 @@ import json
 import sys
 import os
 
-
 PY_VERSION = sys.version_info[0]
 
 if PY_VERSION < 3:
@@ -25,9 +24,7 @@ elif PY_VERSION >= 3:
 
 def main():
     credentials = get_credentials()
-
     print(Style.style("[INFO]", 'green'), 'FETCHING DATA...\n')
-
     repos = get_repos(credentials)
     traffic = get_traffic(credentials, repos)
     if not traffic:
@@ -40,7 +37,6 @@ def get_repos(credentials):
     repos = []
     url = urljoin(Api.BASE_URL, Api.repos(credentials[0]))
     data = request(url, credentials)
-
     for repo in data:
         if repo['owner']['login'] == credentials[0]:  # source repos
             repos.append(repo['name'])
@@ -78,10 +74,8 @@ def get_clones_thread(traffic, queue):
     while not queue.empty():
         q = queue.get()  # (url, repo, credentials)
         data = request(url=q[0], credentials=q[2])
-
         if len(data) > 0:
             traffic[q[1]] = {}
-
             for clone in data['clones']:
                 # {repo: {timestamp: clones}}
                 traffic[q[1]][clone['timestamp']] = clone['count']
@@ -157,7 +151,6 @@ def read_credentials(file):
         f = open(file, "r")
         lines = f.readlines()
         f.close()
-
         for line in lines:
             credentials.append(line.strip())
     except IOError as eio:
@@ -215,26 +208,25 @@ class Style:
 # PRINT
 # -----------------------------------------------------------------
 def print_data(traffic):
-    clones = 0
+    num_of_clones = 0
     today = datetime.today().date()
-
+    # print repos
     for key, value in traffic.items():
         if len(value) > 0:
             print(Style.style(key, 'blue'))
-
+            # print date
             for k, v in sorted(value.items()):
                 date = datetime.strptime(k, Utils.format('YmdHMSZ'))
                 fdate = datetime.strftime(date, Utils.format('md'))
-                clones += 1
-
+                num_of_clones += 1
+                # print new clones
                 if date.date() == today:  # new clone
                     print('{}: {}'.format(fdate, Style.style(c, 'green')))
+                # print older clones
                 else:
                     print('{}: {}'.format(fdate, v))
-
             print()
-
-    print('TOTAL CLONES: {}\n'.format(clones))
+    print('TOTAL CLONES: {}\n'.format(num_of_clones))
 
 
 if __name__ == '__main__':
