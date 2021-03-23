@@ -2,49 +2,48 @@
 # -*- coding: utf-8 -*-
 
 from __future__ import print_function  # print() python2
-import requests
-import six
-import json
 from getpass import getpass
 from threading import Thread
 from datetime import datetime
-
-import os
+import base64
+import json
 import sys
-ABS_PATH = os.path.dirname(__file__)
-sys.path.append(os.path.join(ABS_PATH, 'modules'))
+import os
 
 
-if six.PY2:  # python2
+PY_VERSION = sys.version_info[0]
+
+if PY_VERSION < 3:
+    from Queue import Queue
     from urlparse import urljoin
-    import Queue as q
-elif six.PY3:  # python3
-    import queue as q
+    import urllib2
+elif PY_VERSION >= 3:
+    from queue import Queue
     from urllib.parse import urljoin
+    import urllib.request as urllib2
 
 
 def main():
-    file = os.path.join(ABS_PATH, '.credentials')
-    credentials = get_auth(file)
+    credentials = get_credentials()
 
-    print(color.info(), 'FETCHING DATA...\n')
+    print(Style.style("[INFO]", 'green'), 'FETCHING DATA...\n')
 
     repos = get_repos(credentials)
     traffic = get_traffic(credentials, repos)
-    print_data(traffic)
+    if not traffic:
+        print("NO DATA")
+    else:
+        print_data(traffic)
 
 
 def get_repos(credentials):
-    url = urljoin(
-        api.BASE_URL,
-        api.repos(credentials[0]))
-
-    data = request(url, credentials)
     repos = []
+    url = urljoin(Api.BASE_URL, Api.repos(credentials[0]))
+    data = request(url, credentials)
 
-    for key in data:
-        if key['owner']['login'] == credentials[0]:  # source repos
-            repos.append(key['name'])
+    for repo in data:
+        if repo['owner']['login'] == credentials[0]:  # source repos
+            repos.append(repo['name'])
 
     return repos
 
@@ -66,12 +65,9 @@ def get_traffic(credentials, repos):
 
 
 def build_queue(credentials, repos):
-    queue = q.Queue()
+    queue = Queue()
     for repo in repos:
-        url = urljoin(
-            api.BASE_URL,
-            api.clones(credentials[0], repo))
-
+        url = urljoin(Api.BASE_URL, Api.clones(credentials[0], repo))
         queue.put((url, repo, credentials))
 
     return queue
@@ -81,11 +77,11 @@ def get_clones_thread(traffic, queue):
     # get clones for each repository
     while not queue.empty():
         q = queue.get()  # (url, repo, credentials)
-
         data = request(url=q[0], credentials=q[2])
-        if len(data) > 0:
 
+        if len(data) > 0:
             traffic[q[1]] = {}
+
             for clone in data['clones']:
                 # {repo: {timestamp: clones}}
                 traffic[q[1]][clone['timestamp']] = clone['count']
@@ -94,82 +90,71 @@ def get_clones_thread(traffic, queue):
 
 
 def request(url, credentials):
+    request = build_request(url, credentials)
     try:
-        res = requests.get(url, auth=(credentials[0], credentials[1]))
-        res.raise_for_status()
-
-        return json.loads(res.text)
-
-    except requests.exceptions.HTTPError as eh:
-        print("HTTPError:", eh)
-
-    except requests.exceptions.ConnectionError as ec:
-        print("ConnectionError:", ec)
-
-    except requests.exceptions.Timeout as et:
-        print("Timeout:", et)
-
-    except requests.exceptions.RequestException as er:
-        print("RequestException:", er)
+        resp = urllib2.urlopen(request).read()
+        if resp is None:
+            print("NO DATA")
+            quit()
+        else:
+            return json.loads(resp)
+            # print(json.dumps(json.loads(resp), indent=2, ensure_ascii=False))  # debug
+    except Exception as e:
+        print('Exception:', e)
+        quit()
 
 
-class api:
-    BASE_URL = 'https://api.github.com'
+def build_request(url, credentials):
+    request = urllib2.Request(url)
+    c = credentials[0] + ':' + credentials[1]
+    b64auth = base64.b64encode(c.encode()).decode()
+    request.add_header("Authorization", "Basic %s" % b64auth)
 
-    @staticmethod
-    def repos(username):
-        return 'users/{}/repos'.format(username)
-
-    @staticmethod
-    def clones(username, repo):
-        return 'repos/{}/{}/traffic/clones'.format(username, repo)
+    return request
 
 
-##################################################
-# READ/WRITE USERNAME/TOKEN
-##################################################
-def get_auth(file):
-    if not os.path.isfile(file):  # if no .credentials file
+def get_credentials():
+    abs_path = os.path.dirname(__file__)
+    file = os.path.join(abs_path, '.credentials')
+    # if no .credentials file
+    if not os.path.isfile(file):
         try:
-            if six.PY2:
+            if PY_VERSION < 3:
                 username = raw_input('USERNAME: ')
-            elif six.PY3:
+            elif PY_VERSION >= 3:
                 username = input('USERNAME: ')
 
-            token = getpass(
-                'PERSONAL ACCESS TOKEN (https://github.com/settings/tokens): ')
+            token = getpass("PERSONAL ACCESS TOKEN %s%s " %
+                            (Style.style(Utils.LINK, None, ['dim']), ":"))
         except ValueError as e:
             print("ValueError:", e.reason)
 
         credentials = [username, token]
-        save_passw(credentials, file)  # save login credentials
+        # save login credentials
+        save_credentials(credentials, file)
     else:
-        credentials = read_passw(file)
+        credentials = read_credentials(file)
 
     return credentials
 
 
-def save_passw(credentials, file):
+def save_credentials(credentials, file):
     try:
-        f = open(file, "w")  # write
-
+        f = open(file, "w")
         for c in credentials:
             f.write(c)
             f.write('\n')
-
         f.close()
     except OSError as eos:
         print('OSError:', eos)
-
     except IOError as eio:
         print("IOError:", eio)
 
 
-def read_passw(file):
+def read_credentials(file):
     credentials = []
-
     try:
-        f = open(file, "r")  # read
+        f = open(file, "r")
         lines = f.readlines()
         f.close()
 
@@ -181,32 +166,21 @@ def read_passw(file):
     return credentials
 
 
-##################################################
-# PRINT
-##################################################
-def print_data(traffic):
-    if not traffic:
-        print(C.NO_DATA)
-    else:
-        today = datetime.today().date()
+class Api:
+    BASE_URL = 'https://api.github.com'
 
-        for key, value in traffic.items():
-            if len(value) > 0:
-                print(color.blue(key))
+    @staticmethod
+    def repos(username):
+        return 'users/{}/repos'.format(username)
 
-                for k, v in sorted(value.items()):
-                    date = datetime.strptime(k, C.format('YmdHMSZ'))
-                    fdate = datetime.strftime(date, C.format('md'))
-
-                    if date.date() == today:  # new clone
-                        print('{}: {}'.format(fdate, color.green(v)))
-                    else:
-                        print('{}: {}'.format(fdate, v))
-
-                print()
+    @staticmethod
+    def clones(username, repo):
+        return 'repos/{}/{}/traffic/clones'.format(username, repo)
 
 
-class C:
+class Utils:
+    LINK = "(https://github.com/settings/tokens)"
+
     @staticmethod
     def format(arg):
         return {
@@ -215,22 +189,52 @@ class C:
         }[arg]
 
 
-class color:
+class Style:
     DEFAULT = '\033[0m'
     GREEN = '\033[92m'
     BLUE = '\033[94m'
+    DIM = '\033[2m'
 
     @staticmethod
-    def green(output):
-        return color.GREEN + str(output) + color.DEFAULT
+    def style(output, color, styles=[]):
+        if color is not None:
+            output = {
+                'green': Style.GREEN + '%s',
+                'blue': Style.BLUE + '%s',
+            }[color] % output
 
-    @staticmethod
-    def blue(output):
-        return color.BLUE + str(output) + color.DEFAULT
+        for style in styles:
+            output = {
+                'dim': Style.DIM + '%s'
+            }[style] % output
 
-    @staticmethod
-    def info():
-        return color.green("[INFO]")
+        return output + Style.DEFAULT
+
+
+# -----------------------------------------------------------------
+# PRINT
+# -----------------------------------------------------------------
+def print_data(traffic):
+    clones = 0
+    today = datetime.today().date()
+
+    for key, value in traffic.items():
+        if len(value) > 0:
+            print(Style.style(key, 'blue'))
+
+            for k, v in sorted(value.items()):
+                date = datetime.strptime(k, Utils.format('YmdHMSZ'))
+                fdate = datetime.strftime(date, Utils.format('md'))
+                clones += 1
+
+                if date.date() == today:  # new clone
+                    print('{}: {}'.format(fdate, Style.style(c, 'green')))
+                else:
+                    print('{}: {}'.format(fdate, v))
+
+            print()
+
+    print('TOTAL CLONES: {}\n'.format(clones))
 
 
 if __name__ == '__main__':

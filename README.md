@@ -1,5 +1,5 @@
 # Github traffic
-Lists number of clones for each source repository. Works with Python 2+, 3+.
+Lists number of clones for each source repository.
 
 ## How to run
 1. Run
@@ -7,4 +7,4 @@ Lists number of clones for each source repository. Works with Python 2+, 3+.
 $ ./traffic.py
 ```
 
-2. Input username and password
+2. Input username and [personal access token](https://github.com/settings/tokens)
