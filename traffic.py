@@ -221,12 +221,12 @@ def print_data(traffic):
                 num_of_clones += 1
                 # print new clones
                 if date.date() == today:  # new clone
-                    print('{}: {}'.format(fdate, Style.style(c, 'green')))
+                    print('%s: %s' % (fdate, Style.style(v, 'green')))
                 # print older clones
                 else:
-                    print('{}: {}'.format(fdate, v))
+                    print('%s: %s' % (fdate, v))
             print()
-    print('TOTAL CLONES: {}\n'.format(num_of_clones))
+    print('TOTAL CLONES: %s\n' % num_of_clones)
 
 
 if __name__ == '__main__':
