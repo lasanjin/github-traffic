@@ -24,7 +24,7 @@ elif PY_VERSION >= 3:
 
 def main():
     credentials = get_credentials()
-    print(Style.style("[INFO]", 'green'), 'FETCHING DATA...\n')
+    print(Utils.style("[INFO]", 'green'), 'FETCHING DATA...\n')
     repos = get_repos(credentials)
     traffic = get_traffic(credentials, repos)
     if not traffic:
@@ -119,7 +119,7 @@ def get_credentials():
                 username = input('USERNAME: ')
 
             token = getpass("PERSONAL ACCESS TOKEN %s%s " %
-                            (Style.style(Utils.LINK, None, ['dim']), ":"))
+                            (Utils.style(Utils.LINK, None, ['dim']), ":"))
         except ValueError as e:
             print("ValueError:", e.reason)
 
@@ -181,27 +181,20 @@ class Utils:
             'md': '%m-%d'
         }[arg]
 
-
-class Style:
-    DEFAULT = '\033[0m'
-    GREEN = '\033[92m'
-    BLUE = '\033[94m'
-    DIM = '\033[2m'
-
     @staticmethod
     def style(output, color, styles=[]):
         if color is not None:
             output = {
-                'green': Style.GREEN + '%s',
-                'blue': Style.BLUE + '%s',
+                'green': '\033[92m%s',
+                'blue': '\033[94m%s',
             }[color] % output
 
         for style in styles:
             output = {
-                'dim': Style.DIM + '%s'
+                'dim': '\033[2m%s'
             }[style] % output
 
-        return output + Style.DEFAULT
+        return output + '\033[0m'  # default
 
 
 # -----------------------------------------------------------------
@@ -213,7 +206,7 @@ def print_data(traffic):
     # print repos
     for key, value in traffic.items():
         if len(value) > 0:
-            print(Style.style(key, 'blue'))
+            print(Utils.style(key, 'blue'))
             # print date
             for k, v in sorted(value.items()):
                 date = datetime.strptime(k, Utils.format('YmdHMSZ'))
@@ -221,7 +214,7 @@ def print_data(traffic):
                 num_of_clones += 1
                 # print new clones
                 if date.date() == today:  # new clone
-                    print('%s: %s' % (fdate, Style.style(v, 'green')))
+                    print('%s: %s' % (fdate, Utils.style(v, 'green')))
                 # print older clones
                 else:
                     print('%s: %s' % (fdate, v))
